@@ -1,40 +1,105 @@
 ﻿using NUnit.Framework;
 using RedisStackOverflow.Data;
+using RedisStackOverflow.Data.Utils;
 using RedisStackOverflow.Entities;
-using RedisStackOverflowTest.Data.Repositories;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace RedisStackOverflow.Test.Data.Repositories
 {
     [TestFixture]
     public class CountryRepositoryTest
     {
-        [Test]
-        public void AddCuntry_IncrementId_ReturnTrue()
-        {
-            var repo = RedisUnitOfWork.Countries;
-            var country = new Country() { Id = 1 };
-            var getCountry = repo.Get(country.GetRedisKey());
+        private RedisUnitOfWork _unit;
 
-            country = new Country
+        [OneTimeSetUp]
+        public void SetUp()
+        {
+            _unit = new RedisUnitOfWork();
+        }
+
+        [Test, Order(1)]
+        public void CountryRepository_AddCuntry_ReturnTrue()
+        {
+            var repo = _unit.Countries;
+            var country = new Country
             {
-                Nome = "Brasil",
+                Name = "Brasil",
                 Initials = "BR"
             };
 
+            var currentId = repo.CurrentKeySuffix();
             var addCountry = repo.Add(country);
 
-            Assert.That(country.Id > 0, Is.True);
+            Assert.That(
+                (currentId == 1)
+                    ? addCountry.Id == 1
+                    : addCountry.Id == currentId + 1,
+                Is.True);
+        }
 
-            country = new Country
+        [Test, Order(2)]
+        public void CountryRepository_GetAndUpdateCuntry_ReturnTrue()
+        {
+            var repo = _unit.Countries;
+
+            var currentId = repo.CurrentKeySuffix();
+
+            var country =
+                repo.Get(
+                    repo.GetEntityKey(
+                        currentId));
+
+            Assert.That(country.Id == currentId, Is.True);
+
+            var updatedCountry = new Country
             {
-                Nome = "Brasil",
-                Initials = "BR"
+                Id = currentId,
+                Name = "United States of America",
+                Initials = "USA"
             };
+            
+
+            repo.Update(updatedCountry);
+
+            updatedCountry =
+                repo.Get(
+                    repo.GetEntityKey(
+                        currentId));
+
+            Assert.That(
+                updatedCountry.Id == country.Id
+                && updatedCountry.Name != country.Name
+                && updatedCountry.Initials != country.Initials,
+                Is.True
+            );
+        }
+
+        [Test, Order(3)]
+        public void CountryRepository_DeleteCuntry_ReturnTrue()
+        {
+            var repo = _unit.Countries;
+
+            var currentId = repo.CurrentKeySuffix();
+            var country =
+                repo.Get(
+                    repo.GetEntityKey(
+                        currentId));
+
+            Assert.That(country.Id == currentId, Is.True);
+
+            repo.Delete(country);
+
+            country =
+                repo.Get(
+                    repo.GetEntityKey(
+                        currentId));
+
+            Assert.That(country, Is.Null);
+        }
+
+        [OneTimeTearDown]
+        public void Dispose()
+        {
+            _unit.Dispose();
         }
     }
 }

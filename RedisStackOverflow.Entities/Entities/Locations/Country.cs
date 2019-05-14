@@ -1,19 +1,14 @@
 ﻿using FluentValidation.Attributes;
-using RedisStackOverflow.Entities.Entities.Locations.Validations;
+using RedisStackOverflow.Entities.Locations.Validations;
 using RedisStackOverflow.Entities.Redis;
 
 namespace RedisStackOverflow.Entities
 {
     [Validator(typeof(CountryValidator))]
-    public class Country : IRedisKey
+    public class Country : RedisDefaultKey<Country, CountryValidator>
     {
-        public uint Id { get; set; }
-        public string Nome { get; set; }
+        //public override ulong Id { get; set; }
+        public string Name { get; set; }
         public string Initials { get; set; }
-
-        public string GetRedisKey()
-        {
-            return "country:" + Id;
-        }
     }
 }

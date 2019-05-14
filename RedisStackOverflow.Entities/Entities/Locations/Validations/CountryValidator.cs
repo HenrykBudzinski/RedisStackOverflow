@@ -1,17 +1,12 @@
 ﻿using FluentValidation;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace RedisStackOverflow.Entities.Entities.Locations.Validations
+namespace RedisStackOverflow.Entities.Locations.Validations
 {
     public class CountryValidator : AbstractValidator<Country>
     {
         public CountryValidator()
         {
-            RuleFor(o => o.Nome)
+            RuleFor(o => o.Name)
                 .NotEmpty()
                 .WithMessage("O nome do país é obrigatório");
 

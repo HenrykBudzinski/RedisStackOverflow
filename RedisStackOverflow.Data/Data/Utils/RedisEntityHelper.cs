@@ -1,60 +1,42 @@
 ﻿using RedisStackOverflow.Entities.Redis;
 using StackExchange.Redis;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
+using Newtonsoft.Json;
+using FluentValidation;
+using RedisStackOverflow.Data.Configurations;
 
 namespace RedisStackOverflow.Data.Utils
 {
-    public static class RedisEntityHelper
+    public class RedisEntityHelper<TEntity, TValidator>
+        where TEntity : RedisDefaultKey<TEntity, TValidator>, new()
+        where TValidator : AbstractValidator<TEntity>
     {
-        private static readonly string FbitsCultureInfoName = "fbits";
-        private static readonly CultureInfo DefaultFormat;
+        public const string RedisInputDateTimeFormat = "yyyyMMddHHmmssffffff";
+        private readonly CultureInfo _defaultFormat;
 
-        static RedisEntityHelper()
+        public RedisEntityHelper()
         {
-            var cultureInfo = CultureInfo.GetCultureInfo(FbitsCultureInfoName);
-            if (cultureInfo == null)
-            {
-                CultureAndRegionInfoBuilder.Unregister(FbitsCultureInfoName);
-                var _cultureInfo =
-                    new CultureAndRegionInfoBuilder(
-                        FbitsCultureInfoName,
-                        CultureAndRegionModifiers.None);
-                _cultureInfo.LoadDataFromCultureInfo(CultureInfo.GetCultureInfo(1041));
-                _cultureInfo.RegionEnglishName = "Traycorp - Fbits";
-                _cultureInfo.CultureEnglishName = "Traycorp - Fbits";
-                _cultureInfo.CultureNativeName = "Traycorp - Fbits";
-                _cultureInfo.RegionNativeName = "Traycorp - Fbits";
-                _cultureInfo.ThreeLetterISORegionName = "fbt";
-                _cultureInfo.ThreeLetterISOLanguageName = "fbt";
-                _cultureInfo.ThreeLetterWindowsLanguageName = "fbt";
-                _cultureInfo.ThreeLetterWindowsRegionName = "fbt";
-                _cultureInfo.TwoLetterISORegionName = "fb";
-                _cultureInfo.TwoLetterISOLanguageName = "fb";
-                _cultureInfo.GregorianDateTimeFormat.DateSeparator = "-";
-                _cultureInfo.ISOCurrencySymbol = "BRL";
-                _cultureInfo.CurrencyNativeName = "Real";
-                _cultureInfo.CurrencyEnglishName = "Real";
-                _cultureInfo.Register();
-                cultureInfo = CultureInfo.GetCultureInfo(FbitsCultureInfoName);
-            }
-
-            DefaultFormat = cultureInfo;
+            _defaultFormat = DataGlobalization.GetDefaultCultureInfo();
         }
 
-        public static HashEntry[] GetHashSets<T>(
-            this T entity, 
+        public string GetEntityKey(ulong id)
+        {
+            return typeof(TEntity).Name + ":" + id.ToString();
+        }
+
+        public HashEntry[] GetHashSets(
+            TEntity entity, 
             List<HashEntry> entries = null)
-            where T : IRedisKey
         {
             var props =
                 entity.GetType()
                     .GetProperties(
                         BindingFlags.Public
-                        | BindingFlags.Instance
-                        | BindingFlags.DeclaredOnly);
+                        | BindingFlags.Instance);
 
             if (props.Length == 0)
                 return null;
@@ -79,7 +61,7 @@ namespace RedisStackOverflow.Data.Utils
                         hashEntry = 
                             Convert.ToString(
                                 p.GetValue(entity, null),
-                                DefaultFormat);
+                                _defaultFormat);
                         break;
 
                     case TypeCode.Char:
@@ -102,24 +84,17 @@ namespace RedisStackOverflow.Data.Utils
                     case TypeCode.DateTime:
                         hashEntry =
                             ((DateTime)p.GetValue(entity, null))
-                                .ToString("yyyyMMddhhmmssffffff");
+                                .ToString(RedisInputDateTimeFormat);
                         break;
 
                     case TypeCode.String:
-                        hashEntry = ((string)p.GetValue(entity, null));
+                        hashEntry = (string)p.GetValue(entity, null);
                         break;
 
-                    //case TypeCode.Object:
-                    //    hashEntry = "null";
-                    //    break;
-
                     default:
-                        //var complexObject = p.GetValue(entity, null) as IRedisKey;
-                        //if (complexObject == null)
-                        //    hashEntry = "null";
-                        //else
-                        //    GetHashSets(complexObject, entries);
-                        hashEntry = "null";
+                        hashEntry = 
+                            JsonConvert.SerializeObject(
+                                p.GetValue(entity, null));
                         break;
                 }
 
@@ -127,6 +102,155 @@ namespace RedisStackOverflow.Data.Utils
             }
 
             return entries.ToArray();
+        }
+
+        public TEntity GetEntity(
+            HashEntry[] entries)
+        {
+            var newEntity = new TEntity();
+            var props = 
+                typeof(TEntity).GetProperties(
+                        BindingFlags.Public
+                        | BindingFlags.Instance);
+
+            foreach(var entry in entries)
+            {
+                var prop =
+                    props.FirstOrDefault(
+                        p => p.Name == entry.Name);
+                if (prop == null)
+                    continue;
+
+                var propTypeCode = 
+                    Type.GetTypeCode(
+                        prop.PropertyType);
+
+                switch (propTypeCode)
+                {
+                    case TypeCode.Byte:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToByte(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.SByte:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToSByte(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Int16:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToInt16(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Int32:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToInt32(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Int64:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToInt64(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.UInt16:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToUInt16(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.UInt32:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToUInt64(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.UInt64:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToUInt64(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Char:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToChar(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Boolean:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToBoolean(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Decimal:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToDecimal(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Double:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToDouble(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.Single:
+                        prop.SetValue(
+                            newEntity,
+                            Convert.ToSingle(
+                                entry.Value.ToString()));
+                        break;
+
+                    case TypeCode.DateTime:
+                        prop.SetValue(
+                            newEntity,
+                            DateTime.ParseExact(
+                                entry.Value.ToString(),
+                                RedisInputDateTimeFormat, 
+                                CultureInfo.InvariantCulture));
+                        break;
+
+                    case TypeCode.String:
+                        prop.SetValue(newEntity, entry.Value.ToString());
+                        break;
+
+                    default:
+                        try
+                        {
+                            var deserializedObject =
+                                JsonConvert.DeserializeObject(
+                                    entry.Value,
+                                    prop.PropertyType);
+                            prop.SetValue(
+                                newEntity,
+                                deserializedObject);
+                        }
+                        catch
+                        {
+                            //  log
+                        }
+                        break;
+                }
+            }
+
+            return newEntity;
         }
     }
 }

@@ -1,23 +1,21 @@
-﻿using RedisStackOverflow.Entities.Redis;
+﻿using FluentValidation.Attributes;
+using RedisStackOverflow.Entities.Locations.Validations;
+using RedisStackOverflow.Entities.Redis;
 
 namespace RedisStackOverflow.Entities
 {
-    public class City : IRedisKey
+    [Validator(typeof(CityValidator))]
+    public class City : RedisDefaultKey<City, CityValidator>
     {
         public City()
         {
             Size = new LocationSize(32, 32);
         }
 
-        public uint Id { get; set; }
+        //public override ulong Id { get; set; }
         public string Name { get; set; }
         public byte CityTypeId { get; set; }
-        public uint StateId { get; set; }
+        public ulong StateId { get; set; }
         public LocationSize Size { get; set; }
-
-        public string GetRedisKey()
-        {
-            return "city" + StateId + ":" + Id;
-        }
     }
 }
